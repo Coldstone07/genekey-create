@@ -88,30 +88,42 @@ def to_utc(date_str, time_str, lat, lon):
     return utc_dt.replace(tzinfo=None)  # return naive UTC datetime
 
 
-def _build_profile(date_str, time_str, lat, lon):
-    """Core profile calculation from coordinates (no geocoding)."""
+def calculate_profile(date_str, time_str="12:00", location_str="Greenwich, UK"):
+    """Calculate the full Gene Keys hologenetic profile.
+
+    Args:
+        date_str: Birth date as "YYYY-MM-DD"
+        time_str: Birth time as "HH:MM" (24h format), default "12:00"
+        location_str: Birth location string, default "Greenwich, UK"
+
+    Returns:
+        dict with sphere names as keys, each containing:
+            - gate: Gene Key number (1-64)
+            - line: Line number (1-6)
+    """
+    # Geocode location
+    lat, lon = location_to_coords(location_str)
+
+    # Convert to UTC
     birth_utc = to_utc(date_str, time_str, lat, lon)
 
+    # Get planetary positions at birth (personality side)
     personality_positions = get_planetary_positions(birth_utc)
+
+    # Find design date and get planetary positions (design side)
     design_dt = find_design_date(birth_utc)
     design_positions = get_planetary_positions(design_dt)
 
+    # Calculate each sphere
     profile = {}
     for sphere_name, (planet, side) in SPHERES.items():
-        positions = personality_positions if side == 'personality' else design_positions
+        if side == 'personality':
+            positions = personality_positions
+        else:
+            positions = design_positions
+
         longitude = positions[planet]
         gate, line = longitude_to_gate_line(longitude)
         profile[sphere_name] = {"gate": gate, "line": line}
 
     return profile
-
-
-def calculate_profile_from_coords(date_str, time_str, lat, lon):
-    """Calculate profile directly from coordinates (used by the API)."""
-    return _build_profile(date_str, time_str, lat, lon)
-
-
-def calculate_profile(date_str, time_str="12:00", location_str="Greenwich, UK"):
-    """Calculate profile from a location string (used by CLI)."""
-    lat, lon = location_to_coords(location_str)
-    return _build_profile(date_str, time_str, lat, lon)

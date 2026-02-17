@@ -1,7 +1,6 @@
 pyswisseph
+reportlab
 geopy
 timezonefinder
 tzdata
 flask
-flask-cors
-gunicorn
