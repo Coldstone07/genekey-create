@@ -1,46 +1,49 @@
-"""Flask web application for Gene Keys profile calculator."""
+"""Flask API server for Gene Keys profile calculator."""
 
 import os
-import tempfile
-from flask import Flask, render_template, request, send_file, jsonify
-
-from calculator import calculate_profile
-from report import generate_report
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from calculator import calculate_profile_from_coords, SEQUENCES
 from genekey_data import GENE_KEYS
-from calculator import SEQUENCES
 
-app = Flask(__name__, static_folder=".", static_url_path="")
+app = Flask(__name__)
+CORS(app, origins=[
+    "https://coldstone07.github.io",
+    "http://localhost:*",
+    "http://127.0.0.1:*"
+])
 
 
-@app.route("/")
-def index():
-    return app.send_static_file("index.html")
+@app.route("/api/health")
+def health():
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/calculate", methods=["POST"])
 def calculate():
     data = request.get_json(silent=True) or {}
-    name = data.get("name", "").strip()
-    date = data.get("date", "").strip()
+    name     = data.get("name", "").strip()
+    date     = data.get("date", "").strip()
     time_str = data.get("time", "12:00").strip() or "12:00"
-    location = data.get("location", "").strip()
+    lat      = data.get("lat")
+    lon      = data.get("lon")
 
-    if not name or not date or not location:
-        return jsonify({"error": "Name, date, and location are required."}), 400
+    if not name or not date or lat is None or lon is None:
+        return jsonify({"error": "Name, date, and coordinates are required."}), 400
 
     try:
-        profile = calculate_profile(date, time_str, location)
+        profile = calculate_profile_from_coords(date, time_str, float(lat), float(lon))
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
     results = {}
     for seq_name, sphere_names in SEQUENCES.items():
         results[seq_name] = []
-        for sphere_name in sphere_names:
-            info = profile[sphere_name]
+        for sn in sphere_names:
+            info = profile[sn]
             gk = GENE_KEYS[info["gate"]]
             results[seq_name].append({
-                "sphere": sphere_name,
+                "sphere": sn,
                 "gate": info["gate"],
                 "line": info["line"],
                 "shadow": gk["shadow"],
@@ -48,29 +51,9 @@ def calculate():
                 "siddhi": gk["siddhi"],
             })
 
-    return jsonify({"results": results, "name": name, "date": date, "time": time_str, "location": location})
-
-
-@app.route("/download-pdf", methods=["POST"])
-def download_pdf():
-    name = request.form.get("name", "").strip()
-    date = request.form.get("date", "").strip()
-    time_str = request.form.get("time", "12:00").strip() or "12:00"
-    location = request.form.get("location", "").strip()
-
-    profile = calculate_profile(date, time_str, location)
-
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    tmp.close()
-    generate_report(profile, name, date, time_str, location, tmp.name)
-
-    return send_file(
-        tmp.name,
-        as_attachment=True,
-        download_name=f"{name.replace(' ', '_')}_genekeys.pdf",
-        mimetype="application/pdf",
-    )
+    return jsonify({"results": results, "name": name, "date": date, "time": time_str})
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)

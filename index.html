@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gene Keys Profile Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -434,252 +436,399 @@
 </div>
 
 <script>
+/* ═══════════════════════════════════════════════════════════════
+   BACKEND API
+   ═══════════════════════════════════════════════════════════════ */
+const API_BASE = "https://genekeys-api.onrender.com";
+
+// Warm up the Render free-tier server on page load
+fetch(API_BASE + "/api/health").catch(function () {});
+
+/* ═══════════════════════════════════════════════════════════════
+   PDF GENERATION  (jsPDF + autoTable, all client-side)
+   ═══════════════════════════════════════════════════════════════ */
+function generatePDF(name, dateStr, timeStr, location, results) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const pw = doc.internal.pageSize.getWidth();
+
+    // ── Title ──
+    doc.setFontSize(20);
+    doc.setFont(undefined, "bold");
+    doc.text("Gene Keys Hologenetic Profile", pw / 2, 20, { align: "center" });
+
+    doc.setFontSize(15);
+    doc.setFont(undefined, "normal");
+    doc.text(name, pw / 2, 29, { align: "center" });
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text("Born: " + dateStr + " at " + timeStr + " \u2014 " + location, pw / 2, 36, { align: "center" });
+    doc.setTextColor(0);
+
+    doc.setDrawColor(180);
+    doc.line(15, 40, pw - 15, 40);
+
+    // ── Overview table ──
+    const rows = [];
+    for (const [, spheres] of Object.entries(results)) {
+        for (const s of spheres) {
+            rows.push([s.sphere, String(s.gate), String(s.line),
+                        s.shadow.keyword, s.gift.keyword, s.siddhi.keyword]);
+        }
+    }
+
+    doc.autoTable({
+        startY: 44,
+        head: [["Sphere", "Key", "Line", "Shadow", "Gift", "Siddhi"]],
+        body: rows,
+        theme: "striped",
+        headStyles: { fillColor: [139, 0, 0], fontStyle: "bold" },
+        styles: { fontSize: 9, cellPadding: 3 },
+        columnStyles: {
+            1: { halign: "center", fontStyle: "bold" },
+            2: { halign: "center" },
+            3: { textColor: [180, 90, 60] },
+            4: { textColor: [46, 139, 87] },
+            5: { textColor: [110, 80, 180] }
+        },
+        margin: { left: 15, right: 15 }
+    });
+
+    // ── Detail sections ──
+    let y = doc.lastAutoTable.finalY + 12;
+
+    const seqColors = {
+        "Activation Sequence": [139, 0, 0],
+        "Venus Sequence":      [199, 21, 133],
+        "Pearl Sequence":      [218, 165, 32]
+    };
+
+    for (const [seqName, spheres] of Object.entries(results)) {
+        if (y > 255) { doc.addPage(); y = 20; }
+
+        // Sequence heading
+        const sc = seqColors[seqName] || [0, 0, 0];
+        doc.setFontSize(14);
+        doc.setFont(undefined, "bold");
+        doc.setTextColor(...sc);
+        doc.text(seqName, 15, y);
+        y += 2;
+        doc.setDrawColor(...sc);
+        doc.setLineWidth(0.5);
+        doc.line(15, y, pw - 15, y);
+        y += 7;
+
+        for (const s of spheres) {
+            // Sphere detail table
+            doc.autoTable({
+                startY: y,
+                head: [[{
+                    content: s.sphere + " \u2014 Gene Key " + s.gate + "." + s.line,
+                    colSpan: 2,
+                    styles: { fillColor: [55, 50, 80], textColor: 255, fontStyle: "bold", fontSize: 10 }
+                }]],
+                body: [
+                    [{ content: "Shadow",  styles: { fontStyle: "bold", textColor: [139, 69, 19] } },
+                     s.shadow.keyword + ": " + s.shadow.description],
+                    [{ content: "Gift",    styles: { fontStyle: "bold", textColor: [46, 139, 87] } },
+                     s.gift.keyword + ": " + s.gift.description],
+                    [{ content: "Siddhi",  styles: { fontStyle: "bold", textColor: [75, 0, 130] } },
+                     s.siddhi.keyword + ": " + s.siddhi.description]
+                ],
+                theme: "plain",
+                styles: { fontSize: 8, cellPadding: 3 },
+                columnStyles: { 0: { cellWidth: 22 } },
+                margin: { left: 15, right: 15 },
+                pageBreak: "auto"
+            });
+            y = doc.lastAutoTable.finalY + 5;
+        }
+        y += 3;
+    }
+
+    doc.save(name.replace(/ /g, "_") + "_genekeys.pdf");
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UI — form, autocomplete, results rendering
+   ═══════════════════════════════════════════════════════════════ */
 (function () {
-    const formView = document.getElementById('formView');
-    const resultsView = document.getElementById('resultsView');
-    const form = document.getElementById('profileForm');
-    const btnText = document.getElementById('btnText');
-    const spinner = document.getElementById('spinner');
-    const submitBtn = document.getElementById('submitBtn');
-    const errorMsg = document.getElementById('errorMsg');
-    let lastPayload = null;
+    const formView   = document.getElementById("formView");
+    const resultsView = document.getElementById("resultsView");
+    const form       = document.getElementById("profileForm");
+    const btnText    = document.getElementById("btnText");
+    const spinner    = document.getElementById("spinner");
+    const submitBtn  = document.getElementById("submitBtn");
+    const errorMsg   = document.getElementById("errorMsg");
+
+    let lastPayload  = null;
+    let lastResults  = null;
+
+    // Stored coordinates from autocomplete selection
+    let selectedLat = null;
+    let selectedLon = null;
 
     const SEQ_CLASSES = {
-        'Activation Sequence': 'seq-activation',
-        'Venus Sequence': 'seq-venus',
-        'Pearl Sequence': 'seq-pearl'
+        "Activation Sequence": "seq-activation",
+        "Venus Sequence":      "seq-venus",
+        "Pearl Sequence":      "seq-pearl"
     };
 
     // ── Form submit ──
-    form.addEventListener('submit', async function (e) {
+    form.addEventListener("submit", async function (e) {
         e.preventDefault();
-        errorMsg.style.display = 'none';
-        btnText.style.display = 'none';
-        spinner.style.display = 'block';
-        submitBtn.disabled = true;
+        errorMsg.style.display = "none";
+        btnText.style.display  = "none";
+        spinner.style.display  = "block";
+        submitBtn.disabled     = true;
 
-        const payload = {
-            name: document.getElementById('name').value.trim(),
-            date: document.getElementById('date').value.trim(),
-            time: document.getElementById('time').value.trim() || '12:00',
-            location: document.getElementById('location').value.trim()
-        };
+        const nameVal     = document.getElementById("name").value.trim();
+        const dateVal     = document.getElementById("date").value.trim();
+        const timeVal     = document.getElementById("time").value.trim() || "12:00";
+        const locationVal = document.getElementById("location").value.trim();
+
+        // Cold-start UX: show "waking up" message after 5s
+        let coldStartTimer = setTimeout(function () {
+            btnText.textContent   = "Waking up server... (~30s)";
+            btnText.style.display = "block";
+        }, 5000);
 
         try {
-            const res = await fetch('/api/calculate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-
-            if (!res.ok) {
-                throw new Error(data.error || 'Calculation failed');
+            // Resolve lat/lon — use stored or geocode via Nominatim
+            let lat = selectedLat;
+            let lon = selectedLon;
+            if (lat === null || lon === null) {
+                const geoRes = await fetch(
+                    "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
+                    encodeURIComponent(locationVal),
+                    { headers: { "Accept-Language": "en" } }
+                );
+                const geoData = await geoRes.json();
+                if (!geoData.length) throw new Error("Location not found. Please select from the dropdown.");
+                lat = parseFloat(geoData[0].lat);
+                lon = parseFloat(geoData[0].lon);
             }
 
-            lastPayload = payload;
-            renderResults(data);
-            formView.style.display = 'none';
-            resultsView.style.display = 'block';
+            const res = await fetch(API_BASE + "/api/calculate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: nameVal, date: dateVal, time: timeVal, lat: lat, lon: lon })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Calculation failed.");
+
+            lastPayload = { name: nameVal, date: dateVal, time: timeVal, location: locationVal };
+            lastResults = data.results;
+
+            renderResults({
+                name: nameVal, date: dateVal, time: timeVal,
+                location: locationVal, results: data.results
+            });
+
+            formView.style.display    = "none";
+            resultsView.style.display = "block";
             window.scrollTo(0, 0);
         } catch (err) {
-            errorMsg.textContent = err.message;
-            errorMsg.style.display = 'block';
+            errorMsg.textContent   = err.message;
+            errorMsg.style.display = "block";
         } finally {
-            btnText.style.display = '';
-            spinner.style.display = 'none';
-            submitBtn.disabled = false;
+            clearTimeout(coldStartTimer);
+            btnText.textContent   = "Generate Profile";
+            btnText.style.display = "";
+            spinner.style.display = "none";
+            submitBtn.disabled    = false;
         }
     });
 
     // ── Back button ──
-    document.getElementById('backBtn').addEventListener('click', function () {
-        resultsView.style.display = 'none';
-        formView.style.display = 'flex';
+    document.getElementById("backBtn").addEventListener("click", function () {
+        resultsView.style.display = "none";
+        formView.style.display    = "flex";
     });
 
-    // ── PDF download ──
-    document.getElementById('pdfBtn').addEventListener('click', async function () {
-        if (!lastPayload) return;
-        this.disabled = true;
-        this.textContent = 'Generating...';
-
+    // ── PDF download (client-side) ──
+    document.getElementById("pdfBtn").addEventListener("click", function () {
+        if (!lastPayload || !lastResults) return;
+        this.disabled    = true;
+        this.textContent = "Generating...";
         try {
-            const res = await fetch('/download-pdf', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams(lastPayload)
-            });
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = lastPayload.name.replace(/ /g, '_') + '_genekeys.pdf';
-            a.click();
-            URL.revokeObjectURL(url);
+            generatePDF(lastPayload.name, lastPayload.date, lastPayload.time,
+                        lastPayload.location, lastResults);
         } catch (err) {
-            alert('PDF download failed: ' + err.message);
+            alert("PDF generation failed: " + err.message);
         } finally {
-            this.disabled = false;
-            this.innerHTML = '&#8595; Download PDF';
+            this.disabled  = false;
+            this.innerHTML = "&#8595; Download PDF";
         }
     });
 
     // ── Render results ──
     function renderResults(data) {
-        document.getElementById('resultName').textContent = data.name;
-        document.getElementById('resultInfo').textContent =
-            `${data.date} at ${data.time} \u2014 ${data.location}`;
+        document.getElementById("resultName").textContent = data.name;
+        document.getElementById("resultInfo").textContent =
+            data.date + " at " + data.time + " \u2014 " + data.location;
 
         // Overview table
-        const tbody = document.getElementById('overviewBody');
-        tbody.innerHTML = '';
-        for (const [seqName, spheres] of Object.entries(data.results)) {
+        const tbody = document.getElementById("overviewBody");
+        tbody.innerHTML = "";
+        for (const [, spheres] of Object.entries(data.results)) {
             for (const s of spheres) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${s.sphere}</td>
-                    <td><span class="gate-num">${s.gate}</span></td>
-                    <td><span class="line-num">${s.line}</span></td>
-                    <td><span class="kw-shadow">${s.shadow.keyword}</span></td>
-                    <td><span class="kw-gift">${s.gift.keyword}</span></td>
-                    <td><span class="kw-siddhi">${s.siddhi.keyword}</span></td>`;
+                const tr = document.createElement("tr");
+                tr.innerHTML =
+                    "<td>" + s.sphere + "</td>" +
+                    '<td><span class="gate-num">' + s.gate + "</span></td>" +
+                    '<td><span class="line-num">' + s.line + "</span></td>" +
+                    '<td><span class="kw-shadow">' + s.shadow.keyword + "</span></td>" +
+                    '<td><span class="kw-gift">' + s.gift.keyword + "</span></td>" +
+                    '<td><span class="kw-siddhi">' + s.siddhi.keyword + "</span></td>";
                 tbody.appendChild(tr);
             }
         }
 
         // Detail sections
-        const detail = document.getElementById('detailSections');
-        detail.innerHTML = '';
+        const detail = document.getElementById("detailSections");
+        detail.innerHTML = "";
         for (const [seqName, spheres] of Object.entries(data.results)) {
-            const seqClass = SEQ_CLASSES[seqName] || '';
-            let html = `<div class="sequence ${seqClass}">
-                <div class="sequence-title">${seqName}</div>
-                <div class="sphere-cards">`;
+            const seqClass = SEQ_CLASSES[seqName] || "";
+            let html = '<div class="sequence ' + seqClass + '">' +
+                '<div class="sequence-title">' + seqName + "</div>" +
+                '<div class="sphere-cards">';
 
             for (const s of spheres) {
-                html += `
-                <div class="sphere-card">
-                    <div class="sphere-top">
-                        <span class="sphere-name">${s.sphere}</span>
-                        <span>
-                            <span class="sphere-gate">${s.gate}</span>
-                            <span class="sphere-line">.${s.line}</span>
-                        </span>
-                    </div>
-                    <div class="freq-bands">
-                        <div class="freq-band">
-                            <div class="freq-label shadow">Shadow</div>
-                            <div class="freq-content">
-                                <div class="freq-keyword">${s.shadow.keyword}</div>
-                                <div class="freq-desc">${s.shadow.description}</div>
-                            </div>
-                        </div>
-                        <div class="freq-band">
-                            <div class="freq-label gift">Gift</div>
-                            <div class="freq-content">
-                                <div class="freq-keyword">${s.gift.keyword}</div>
-                                <div class="freq-desc">${s.gift.description}</div>
-                            </div>
-                        </div>
-                        <div class="freq-band">
-                            <div class="freq-label siddhi">Siddhi</div>
-                            <div class="freq-content">
-                                <div class="freq-keyword">${s.siddhi.keyword}</div>
-                                <div class="freq-desc">${s.siddhi.description}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
+                html +=
+                    '<div class="sphere-card">' +
+                    '  <div class="sphere-top">' +
+                    '    <span class="sphere-name">' + s.sphere + "</span>" +
+                    "    <span>" +
+                    '      <span class="sphere-gate">' + s.gate + "</span>" +
+                    '      <span class="sphere-line">.' + s.line + "</span>" +
+                    "    </span>" +
+                    "  </div>" +
+                    '  <div class="freq-bands">' +
+                    '    <div class="freq-band">' +
+                    '      <div class="freq-label shadow">Shadow</div>' +
+                    '      <div class="freq-content">' +
+                    '        <div class="freq-keyword">' + s.shadow.keyword + "</div>" +
+                    '        <div class="freq-desc">' + s.shadow.description + "</div>" +
+                    "      </div>" +
+                    "    </div>" +
+                    '    <div class="freq-band">' +
+                    '      <div class="freq-label gift">Gift</div>' +
+                    '      <div class="freq-content">' +
+                    '        <div class="freq-keyword">' + s.gift.keyword + "</div>" +
+                    '        <div class="freq-desc">' + s.gift.description + "</div>" +
+                    "      </div>" +
+                    "    </div>" +
+                    '    <div class="freq-band">' +
+                    '      <div class="freq-label siddhi">Siddhi</div>' +
+                    '      <div class="freq-content">' +
+                    '        <div class="freq-keyword">' + s.siddhi.keyword + "</div>" +
+                    '        <div class="freq-desc">' + s.siddhi.description + "</div>" +
+                    "      </div>" +
+                    "    </div>" +
+                    "  </div>" +
+                    "</div>";
             }
 
-            html += '</div></div>';
+            html += "</div></div>";
             detail.innerHTML += html;
         }
     }
 
     // ── Location Autocomplete ──
-    const locInput = document.getElementById('location');
-    const dropdown = document.getElementById('locDropdown');
+    const locInput = document.getElementById("location");
+    const dropdown = document.getElementById("locDropdown");
     let debounceTimer = null;
-    let activeIdx = -1;
-    let items = [];
+    let activeIdx     = -1;
+    let items         = [];
 
     function renderItems(results) {
-        items = results;
+        items     = results;
         activeIdx = -1;
         if (!results.length) {
             dropdown.innerHTML = '<div class="autocomplete-loading">No results found</div>';
-            dropdown.classList.add('show');
+            dropdown.classList.add("show");
             return;
         }
-        dropdown.innerHTML = results.map((r, i) => {
-            const parts = r.display_name.split(', ');
-            const main = parts.slice(0, 2).join(', ');
-            const detail = parts.slice(2).join(', ');
-            return `<div class="autocomplete-item" data-index="${i}">
-                <div class="loc-main">${main}</div>
-                ${detail ? `<div class="loc-detail">${detail}</div>` : ''}
-            </div>`;
-        }).join('');
-        dropdown.classList.add('show');
+        dropdown.innerHTML = results.map(function (r, i) {
+            const parts  = r.display_name.split(", ");
+            const main   = parts.slice(0, 2).join(", ");
+            const detail = parts.slice(2).join(", ");
+            return '<div class="autocomplete-item" data-index="' + i + '">' +
+                '<div class="loc-main">' + main + "</div>" +
+                (detail ? '<div class="loc-detail">' + detail + "</div>" : "") +
+                "</div>";
+        }).join("");
+        dropdown.classList.add("show");
     }
 
     function selectItem(idx) {
         if (idx < 0 || idx >= items.length) return;
         locInput.value = items[idx].display_name;
-        dropdown.classList.remove('show');
-        dropdown.innerHTML = '';
+        selectedLat    = parseFloat(items[idx].lat);
+        selectedLon    = parseFloat(items[idx].lon);
+        dropdown.classList.remove("show");
+        dropdown.innerHTML = "";
     }
 
     function fetchSuggestions(query) {
-        if (query.length < 2) { dropdown.classList.remove('show'); return; }
+        if (query.length < 2) { dropdown.classList.remove("show"); return; }
         dropdown.innerHTML = '<div class="autocomplete-loading">Searching...</div>';
-        dropdown.classList.add('show');
+        dropdown.classList.add("show");
 
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}&addressdetails=1&featuretype=city`,
-            { headers: { 'Accept-Language': 'en' } })
-            .then(r => r.json())
-            .then(data => renderItems(data))
-            .catch(() => { dropdown.innerHTML = '<div class="autocomplete-loading">Search failed</div>'; });
+        fetch("https://nominatim.openstreetmap.org/search?format=json&limit=5&q=" +
+                encodeURIComponent(query) + "&addressdetails=1&featuretype=city",
+            { headers: { "Accept-Language": "en" } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) { renderItems(data); })
+            .catch(function () {
+                dropdown.innerHTML = '<div class="autocomplete-loading">Search failed</div>';
+            });
     }
 
-    locInput.addEventListener('input', function () {
+    locInput.addEventListener("input", function () {
+        // Clear stored coords when user edits location text
+        selectedLat = null;
+        selectedLon = null;
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => fetchSuggestions(this.value.trim()), 300);
+        debounceTimer = setTimeout(function () {
+            fetchSuggestions(locInput.value.trim());
+        }, 300);
     });
 
-    locInput.addEventListener('keydown', function (e) {
-        if (!dropdown.classList.contains('show') || !items.length) return;
-        if (e.key === 'ArrowDown') {
+    locInput.addEventListener("keydown", function (e) {
+        if (!dropdown.classList.contains("show") || !items.length) return;
+        if (e.key === "ArrowDown") {
             e.preventDefault();
             activeIdx = Math.min(activeIdx + 1, items.length - 1);
             updateActive();
-        } else if (e.key === 'ArrowUp') {
+        } else if (e.key === "ArrowUp") {
             e.preventDefault();
             activeIdx = Math.max(activeIdx - 1, 0);
             updateActive();
-        } else if (e.key === 'Enter' && activeIdx >= 0) {
+        } else if (e.key === "Enter" && activeIdx >= 0) {
             e.preventDefault();
             selectItem(activeIdx);
-        } else if (e.key === 'Escape') {
-            dropdown.classList.remove('show');
+        } else if (e.key === "Escape") {
+            dropdown.classList.remove("show");
         }
     });
 
     function updateActive() {
-        dropdown.querySelectorAll('.autocomplete-item').forEach((el, i) => {
-            el.classList.toggle('active', i === activeIdx);
+        dropdown.querySelectorAll(".autocomplete-item").forEach(function (el, i) {
+            el.classList.toggle("active", i === activeIdx);
         });
     }
 
-    dropdown.addEventListener('mousedown', function (e) {
-        const item = e.target.closest('.autocomplete-item');
+    dropdown.addEventListener("mousedown", function (e) {
+        var item = e.target.closest(".autocomplete-item");
         if (item) { e.preventDefault(); selectItem(parseInt(item.dataset.index)); }
     });
 
-    document.addEventListener('click', function (e) {
-        if (!e.target.closest('.autocomplete-wrap')) dropdown.classList.remove('show');
+    document.addEventListener("click", function (e) {
+        if (!e.target.closest(".autocomplete-wrap")) dropdown.classList.remove("show");
     });
 })();
 </script>
