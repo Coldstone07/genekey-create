@@ -1,0 +1,6 @@
+pyswisseph
+reportlab
+geopy
+timezonefinder
+tzdata
+flask

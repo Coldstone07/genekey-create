@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gene Keys Profile Calculator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e0e0e0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 520px;
+            padding: 20px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 48px 40px;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .logo svg {
+            width: 56px;
+            height: 56px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, #f5d5a0, #e8a87c, #d4a0d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.45);
+            margin-bottom: 36px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            color: #f0f0f0;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: rgba(232, 168, 124, 0.5);
+            box-shadow: 0 0 0 3px rgba(232, 168, 124, 0.1);
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Fix date/time input colors on dark backgrounds */
+        input[type="date"],
+        input[type="time"] {
+            color-scheme: dark;
+        }
+
+        .row {
+            display: flex;
+            gap: 14px;
+        }
+
+        .row .form-group {
+            flex: 1;
+        }
+
+        .hint {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.3);
+            margin-top: 4px;
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            margin-top: 8px;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #e8a87c, #d4a0d4);
+            color: #1a1a2e;
+            box-shadow: 0 4px 24px rgba(232, 168, 124, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 32px rgba(232, 168, 124, 0.45);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2.5px solid rgba(26, 26, 46, 0.3);
+            border-top-color: #1a1a2e;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-msg {
+            background: rgba(255, 80, 80, 0.15);
+            border: 1px solid rgba(255, 80, 80, 0.3);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 0.85rem;
+            color: #ff8a8a;
+            margin-top: 16px;
+            display: none;
+        }
+
+        /* Location autocomplete */
+        .autocomplete-wrap {
+            position: relative;
+        }
+
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 50;
+            margin-top: 4px;
+            background: rgba(30, 28, 60, 0.97);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+
+        .autocomplete-list.show {
+            display: block;
+        }
+
+        .autocomplete-item {
+            padding: 12px 16px;
+            font-size: 0.88rem;
+            color: #e0e0e0;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: background 0.12s;
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.active {
+            background: rgba(232, 168, 124, 0.15);
+        }
+
+        .autocomplete-item .loc-main {
+            font-weight: 500;
+        }
+
+        .autocomplete-item .loc-detail {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.35);
+            margin-top: 2px;
+        }
+
+        .autocomplete-loading {
+            padding: 12px 16px;
+            font-size: 0.82rem;
+            color: rgba(255, 255, 255, 0.35);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="logo">
+                <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="32" cy="32" r="28" stroke="url(#g1)" stroke-width="2" opacity="0.6"/>
+                    <circle cx="32" cy="32" r="18" stroke="url(#g1)" stroke-width="1.5" opacity="0.4"/>
+                    <circle cx="32" cy="32" r="5" fill="url(#g1)" opacity="0.8"/>
+                    <line x1="32" y1="4" x2="32" y2="14" stroke="url(#g1)" stroke-width="1.5" opacity="0.5"/>
+                    <line x1="32" y1="50" x2="32" y2="60" stroke="url(#g1)" stroke-width="1.5" opacity="0.5"/>
+                    <line x1="4" y1="32" x2="14" y2="32" stroke="url(#g1)" stroke-width="1.5" opacity="0.5"/>
+                    <line x1="50" y1="32" x2="60" y2="32" stroke="url(#g1)" stroke-width="1.5" opacity="0.5"/>
+                    <defs>
+                        <linearGradient id="g1" x1="0" y1="0" x2="64" y2="64">
+                            <stop stop-color="#f5d5a0"/>
+                            <stop offset="1" stop-color="#d4a0d4"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <h1>Gene Keys</h1>
+            <p class="subtitle">Hologenetic Profile Calculator</p>
+
+            <form id="profileForm" action="/calculate" method="POST">
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" placeholder="e.g. Kailash" required>
+                </div>
+
+                <div class="row">
+                    <div class="form-group">
+                        <label for="date">Birth Date</label>
+                        <input type="date" id="date" name="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="time">Birth Time</label>
+                        <input type="time" id="time" name="time" value="12:00">
+                        <div class="hint">Default 12:00 if unknown</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="location">Birth Location</label>
+                    <div class="autocomplete-wrap">
+                        <input type="text" id="location" name="location" placeholder="Start typing a city..." required autocomplete="off">
+                        <div class="autocomplete-list" id="locDropdown"></div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary" id="submitBtn">
+                    <span id="btnText">Generate Profile</span>
+                    <div class="spinner" id="spinner"></div>
+                </button>
+
+                <div class="error-msg" id="errorMsg"></div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('profileForm').addEventListener('submit', function () {
+            document.getElementById('btnText').style.display = 'none';
+            document.getElementById('spinner').style.display = 'block';
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('errorMsg').style.display = 'none';
+        });
+
+        // Location autocomplete
+        (function () {
+            const input = document.getElementById('location');
+            const dropdown = document.getElementById('locDropdown');
+            let debounceTimer = null;
+            let activeIdx = -1;
+            let items = [];
+            let selectedFromList = false;
+
+            function renderItems(results) {
+                items = results;
+                activeIdx = -1;
+                if (!results.length) {
+                    dropdown.innerHTML = '<div class="autocomplete-loading">No results found</div>';
+                    dropdown.classList.add('show');
+                    return;
+                }
+                dropdown.innerHTML = results.map((r, i) => {
+                    const parts = r.display_name.split(', ');
+                    const main = parts.slice(0, 2).join(', ');
+                    const detail = parts.slice(2).join(', ');
+                    return `<div class="autocomplete-item" data-index="${i}">
+                        <div class="loc-main">${main}</div>
+                        ${detail ? `<div class="loc-detail">${detail}</div>` : ''}
+                    </div>`;
+                }).join('');
+                dropdown.classList.add('show');
+            }
+
+            function selectItem(idx) {
+                if (idx < 0 || idx >= items.length) return;
+                input.value = items[idx].display_name;
+                selectedFromList = true;
+                dropdown.classList.remove('show');
+                dropdown.innerHTML = '';
+            }
+
+            function fetchSuggestions(query) {
+                if (query.length < 2) {
+                    dropdown.classList.remove('show');
+                    return;
+                }
+                dropdown.innerHTML = '<div class="autocomplete-loading">Searching...</div>';
+                dropdown.classList.add('show');
+
+                const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}&addressdetails=1&featuretype=city`;
+                fetch(url, { headers: { 'Accept-Language': 'en' } })
+                    .then(r => r.json())
+                    .then(data => renderItems(data))
+                    .catch(() => {
+                        dropdown.innerHTML = '<div class="autocomplete-loading">Search failed</div>';
+                    });
+            }
+
+            input.addEventListener('input', function () {
+                selectedFromList = false;
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => fetchSuggestions(this.value.trim()), 300);
+            });
+
+            input.addEventListener('keydown', function (e) {
+                const visible = dropdown.classList.contains('show') && items.length;
+                if (!visible) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeIdx = Math.min(activeIdx + 1, items.length - 1);
+                    updateActive();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeIdx = Math.max(activeIdx - 1, 0);
+                    updateActive();
+                } else if (e.key === 'Enter' && activeIdx >= 0) {
+                    e.preventDefault();
+                    selectItem(activeIdx);
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            function updateActive() {
+                dropdown.querySelectorAll('.autocomplete-item').forEach((el, i) => {
+                    el.classList.toggle('active', i === activeIdx);
+                });
+            }
+
+            dropdown.addEventListener('mousedown', function (e) {
+                const item = e.target.closest('.autocomplete-item');
+                if (item) {
+                    e.preventDefault();
+                    selectItem(parseInt(item.dataset.index));
+                }
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('.autocomplete-wrap')) {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            // Prevent form submit if user hasn't picked from dropdown
+            document.getElementById('profileForm').addEventListener('submit', function (e) {
+                // Allow submit - the backend geocoder will validate
+            });
+        })();
+    </script>
+</body>
+</html>

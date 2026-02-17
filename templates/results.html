@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ name }} — Gene Keys Profile</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+
+        .page-header {
+            text-align: center;
+            padding: 48px 20px 32px;
+        }
+
+        .page-header h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #f5d5a0, #e8a87c, #d4a0d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .birth-info {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .actions {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 22px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            text-decoration: none;
+            border: none;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .btn:active { transform: scale(0.97); }
+
+        .btn-pdf {
+            background: linear-gradient(135deg, #e8a87c, #d4a0d4);
+            color: #1a1a2e;
+            box-shadow: 0 4px 20px rgba(232, 168, 124, 0.3);
+        }
+
+        .btn-back {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 0 20px 60px;
+        }
+
+        /* Overview table */
+        .overview {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 18px;
+            overflow: hidden;
+            margin-bottom: 40px;
+        }
+
+        .overview table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .overview th {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 14px 16px;
+            text-align: left;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: rgba(255, 255, 255, 0.45);
+            font-weight: 600;
+        }
+
+        .overview td {
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .overview tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .gate-num {
+            font-weight: 700;
+            font-size: 1.1rem;
+            background: linear-gradient(135deg, #f5d5a0, #e8a87c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .line-num {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .kw-shadow { color: #e07a5f; }
+        .kw-gift { color: #81b29a; }
+        .kw-siddhi { color: #b8a9e8; }
+
+        /* Sequence sections */
+        .sequence {
+            margin-bottom: 36px;
+        }
+
+        .sequence-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-left: 16px;
+            border-left: 3px solid;
+        }
+
+        .seq-activation .sequence-title { border-color: #e07a5f; color: #e07a5f; }
+        .seq-venus .sequence-title { border-color: #d4a0d4; color: #d4a0d4; }
+        .seq-pearl .sequence-title { border-color: #f5d5a0; color: #f5d5a0; }
+
+        .sphere-cards {
+            display: grid;
+            gap: 16px;
+        }
+
+        .sphere-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 24px 28px;
+            transition: border-color 0.2s;
+        }
+
+        .sphere-card:hover {
+            border-color: rgba(255, 255, 255, 0.18);
+        }
+
+        .sphere-top {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .sphere-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        .sphere-gate {
+            font-size: 1.3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #f5d5a0, #e8a87c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sphere-line {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.35);
+            font-weight: 400;
+        }
+
+        .freq-bands {
+            display: grid;
+            gap: 12px;
+        }
+
+        .freq-band {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 8px;
+            align-items: start;
+        }
+
+        .freq-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding-top: 2px;
+        }
+
+        .freq-label.shadow { color: #e07a5f; }
+        .freq-label.gift { color: #81b29a; }
+        .freq-label.siddhi { color: #b8a9e8; }
+
+        .freq-content {
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
+        .freq-keyword {
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        .freq-desc {
+            color: rgba(255, 255, 255, 0.45);
+            margin-top: 2px;
+            font-size: 0.82rem;
+        }
+
+        /* Hidden form for PDF download */
+        .hidden-form { display: none; }
+
+        @media (max-width: 600px) {
+            .page-header h1 { font-size: 1.5rem; }
+            .sphere-card { padding: 18px 20px; }
+            .freq-band {
+                grid-template-columns: 1fr;
+                gap: 2px;
+            }
+            .overview { overflow-x: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <h1>{{ name }}</h1>
+        <div class="birth-info">{{ date }} at {{ time }} — {{ location }}</div>
+        <div class="actions">
+            <a href="/" class="btn btn-back">← New Profile</a>
+            <form action="/download-pdf" method="POST" style="display:inline">
+                <input type="hidden" name="name" value="{{ name }}">
+                <input type="hidden" name="date" value="{{ date }}">
+                <input type="hidden" name="time" value="{{ time }}">
+                <input type="hidden" name="location" value="{{ location }}">
+                <button type="submit" class="btn btn-pdf">↓ Download PDF</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Overview Table -->
+        <div class="overview">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Sphere</th>
+                        <th>Key</th>
+                        <th>Line</th>
+                        <th>Shadow</th>
+                        <th>Gift</th>
+                        <th>Siddhi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for seq_name, spheres in results.items() %}
+                    {% for s in spheres %}
+                    <tr>
+                        <td>{{ s.sphere }}</td>
+                        <td><span class="gate-num">{{ s.gate }}</span></td>
+                        <td><span class="line-num">{{ s.line }}</span></td>
+                        <td><span class="kw-shadow">{{ s.shadow.keyword }}</span></td>
+                        <td><span class="kw-gift">{{ s.gift.keyword }}</span></td>
+                        <td><span class="kw-siddhi">{{ s.siddhi.keyword }}</span></td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Detailed Sections -->
+        {% set seq_classes = {
+            "Activation Sequence": "seq-activation",
+            "Venus Sequence": "seq-venus",
+            "Pearl Sequence": "seq-pearl"
+        } %}
+
+        {% for seq_name, spheres in results.items() %}
+        <div class="sequence {{ seq_classes[seq_name] }}">
+            <div class="sequence-title">{{ seq_name }}</div>
+            <div class="sphere-cards">
+                {% for s in spheres %}
+                <div class="sphere-card">
+                    <div class="sphere-top">
+                        <span class="sphere-name">{{ s.sphere }}</span>
+                        <span>
+                            <span class="sphere-gate">{{ s.gate }}</span>
+                            <span class="sphere-line">.{{ s.line }}</span>
+                        </span>
+                    </div>
+                    <div class="freq-bands">
+                        <div class="freq-band">
+                            <div class="freq-label shadow">Shadow</div>
+                            <div class="freq-content">
+                                <div class="freq-keyword">{{ s.shadow.keyword }}</div>
+                                <div class="freq-desc">{{ s.shadow.description }}</div>
+                            </div>
+                        </div>
+                        <div class="freq-band">
+                            <div class="freq-label gift">Gift</div>
+                            <div class="freq-content">
+                                <div class="freq-keyword">{{ s.gift.keyword }}</div>
+                                <div class="freq-desc">{{ s.gift.description }}</div>
+                            </div>
+                        </div>
+                        <div class="freq-band">
+                            <div class="freq-label siddhi">Siddhi</div>
+                            <div class="freq-content">
+                                <div class="freq-keyword">{{ s.siddhi.keyword }}</div>
+                                <div class="freq-desc">{{ s.siddhi.description }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
