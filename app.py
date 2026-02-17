@@ -9,20 +9,21 @@ from report import generate_report
 from genekey_data import GENE_KEYS
 from calculator import SEQUENCES
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=".", static_url_path="")
 
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return app.send_static_file("index.html")
 
 
-@app.route("/calculate", methods=["POST"])
+@app.route("/api/calculate", methods=["POST"])
 def calculate():
-    name = request.form.get("name", "").strip()
-    date = request.form.get("date", "").strip()
-    time_str = request.form.get("time", "12:00").strip() or "12:00"
-    location = request.form.get("location", "").strip()
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    date = data.get("date", "").strip()
+    time_str = data.get("time", "12:00").strip() or "12:00"
+    location = data.get("location", "").strip()
 
     if not name or not date or not location:
         return jsonify({"error": "Name, date, and location are required."}), 400
@@ -32,7 +33,6 @@ def calculate():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-    # Build result data with Gene Key details
     results = {}
     for seq_name, sphere_names in SEQUENCES.items():
         results[seq_name] = []
@@ -48,14 +48,7 @@ def calculate():
                 "siddhi": gk["siddhi"],
             })
 
-    return render_template(
-        "results.html",
-        name=name,
-        date=date,
-        time=time_str,
-        location=location,
-        results=results,
-    )
+    return jsonify({"results": results, "name": name, "date": date, "time": time_str, "location": location})
 
 
 @app.route("/download-pdf", methods=["POST"])
